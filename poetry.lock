@@ -1363,6 +1363,25 @@ files = [
 ]
 
 [[package]]
+name = "reportlab"
+version = "4.0.6"
+description = "The Reportlab Toolkit"
+optional = false
+python-versions = ">=3.7,<4"
+files = [
+    {file = "reportlab-4.0.6-py3-none-any.whl", hash = "sha256:ec062675202eb76f6100ed44da64f38ed3c7feb5016cf4fe7f17ce35423ab14a"},
+    {file = "reportlab-4.0.6.tar.gz", hash = "sha256:069aa35da7c882921f419f6e26327e14dac1d9d0adeb40b584cdadd974d99fc0"},
+]
+
+[package.dependencies]
+pillow = ">=9.0.0"
+
+[package.extras]
+accel = ["rl-accel (>=0.9.0,<1.1)"]
+pycairo = ["freetype-py (>=2.3.0,<2.4)", "rlPyCairo (>=0.2.0,<1)"]
+renderpm = ["rl-renderPM (>=4.0.3,<4.1)"]
+
+[[package]]
 name = "requests"
 version = "2.31.0"
 description = "Python HTTP for Humans."
@@ -1894,4 +1913,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "6daa20e3a7daf72ed1a524f0bc1d0e6e448e0f21403d1b9d3c4098d70aa13bb1"
+content-hash = "d47565aac0d5eb7ab44d638b62f78925cd5283d674a953776e42839fa4dc68f4"
