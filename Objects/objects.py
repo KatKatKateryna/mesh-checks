@@ -62,8 +62,8 @@ class HealthObject:
         If the area is zero, density defaults to zero.
         """
         return {
-            key: (self.sizes[key] / self.areas[key])
-            if key in self.areas.keys() and self.areas[key] != 0
+            key: (self.sizes.get(key, 1) / self.areas.get(key, 1))
+            if self.areas.get(key, 0) != 0
             else 0
             for key in self.sizes
         }
@@ -96,10 +96,8 @@ class HealthObject:
         display_value = Utilities.try_get_display_value(base_object)
 
         if display_value:
-            self.compute_bounding_volume_from_display_values(display_value)
-
-        if display_value:
             self.display_values = display_value
+            self.compute_bounding_volume_from_display_values(display_value)
             self.compute_byte_size_from_display_values(display_value)
 
     def compute_bounding_volume_from_display_values(
@@ -117,9 +115,11 @@ class HealthObject:
             float: The computed volume.
         """
         for index, dv in enumerate(display_value):
-            if hasattr(dv, "bbox") and dv.bbox:
-                self.bounding_volumes[dv.id] = dv.bbox.volume
-            elif isinstance(dv, Mesh):
+            # if hasattr(dv, "bbox") and dv.bbox:
+            #     self.bounding_volumes[dv.id] = dv.bbox.volume
+            #     self.areas[dv.id] = dv.bbox.xSize.length * dv.bbox.ySize.length
+            # elif isinstance(dv, Mesh):
+            if isinstance(dv, Mesh):
                 x_interval = self.interval_from_coordinates_by_offset(dv.vertices, 0)
                 y_interval = self.interval_from_coordinates_by_offset(dv.vertices, 1)
                 z_interval = self.interval_from_coordinates_by_offset(dv.vertices, 2)
@@ -171,6 +171,58 @@ class HealthObject:
         return axis_interval
 
 
+# def colorise_densities(
+#         automate_context: AutomationContext, health_objects: Dict[str, HealthObject]
+# ) -> None:
+#     """
+#     Create a color gradient based on density values for visualization.
+#
+#     Args:
+#         automate_context (AutomationContext): Context for the automate function.
+#         health_objects (Dict[str, HealthObject]): Dictionary mapping object IDs
+#                                                   to their HealthObject.
+#
+#     For each HealthObject, this function calculates a color based on its
+#     density. This color then is used to update the object's render material.
+#     """
+#
+#     # Extracting densities for each HealthObject
+#     densities = {ho.id: ho.aggregate_density for ho in health_objects.values()}
+#
+#     if len(densities.items()) == 0:
+#         return
+#
+#     # Determine the range of densities for normalization
+#     min_density = min(densities.values())
+#     max_density = max(densities.values())
+#
+#     # Get the colormap and normalize the densities
+#     cmap = plt.get_cmap("viridis")
+#     norm = plt.Normalize(min_density, max_density)
+#
+#     # Iterate through each HealthObject and update its render material
+#     for obj_id, density in densities.items():
+#         rgba_color = cmap(norm(density))
+#
+#         # Convert RGBA to Hex
+#         hex_color = "#{:02x}{:02x}{:02x}".format(
+#             int(rgba_color[0] * 255), int(rgba_color[1] * 255), int(rgba_color[2] * 255)
+#         )
+#
+#         # Convert hex color to ARBG integer format
+#         arbg_color = int(hex_color[1:], 16) - (1 << 32)
+#
+#         # Attach color information for visualization
+#         automate_context.attach_info_to_objects(
+#             category="Density Visualization",
+#             metadata={"density": density},
+#             message="density visualization",
+#             object_ids=obj_id,
+#             visual_overrides={"color": hex_color},
+#         )
+#
+#         # Update the render material of the HealthObject
+#         health_objects[obj_id].render_material = RenderMaterial(diffuse=arbg_color)
 def colorise_densities(
     automate_context: AutomationContext, health_objects: Dict[str, HealthObject]
 ) -> None:
@@ -189,7 +241,7 @@ def colorise_densities(
     # Extracting densities for each HealthObject
     densities = {ho.id: ho.aggregate_density for ho in health_objects.values()}
 
-    if len(densities.items()) == 0:
+    if not densities:
         return
 
     # Determine the range of densities for normalization
@@ -200,8 +252,11 @@ def colorise_densities(
     cmap = plt.get_cmap("viridis")
     norm = plt.Normalize(min_density, max_density)
 
-    # Iterate through each HealthObject and update its render material
-    for obj_id, density in densities.items():
+    gradient_values = {}
+    all_object_ids = []
+    all_colors = {}
+
+    for object_id, density in densities.items():
         rgba_color = cmap(norm(density))
 
         # Convert RGBA to Hex
@@ -209,20 +264,21 @@ def colorise_densities(
             int(rgba_color[0] * 255), int(rgba_color[1] * 255), int(rgba_color[2] * 255)
         )
 
-        # Convert hex color to ARBG integer format
+        gradient_values[object_id] = {"gradientValue": density}
+        all_object_ids.append(object_id)
+        all_colors[object_id] = hex_color
+
+        # Convert hex color to ARBG integer format and register a render material
         arbg_color = int(hex_color[1:], 16) - (1 << 32)
+        health_objects[object_id].render_material = RenderMaterial(diffuse=arbg_color)
 
-        # Attach color information for visualization
-        automate_context.attach_info_to_objects(
-            category="Density Visualization",
-            metadata={"density": density},
-            message="density visualization",
-            object_ids=obj_id,
-            visual_overrides={"color": hex_color},
-        )
-
-        # Update the render material of the HealthObject
-        health_objects[obj_id].render_material = RenderMaterial(diffuse=arbg_color)
+    # Attach color information for visualization for all objects in a single call
+    automate_context.attach_info_to_objects(
+        category="Density Visualization",
+        metadata={"gradient": True, "gradientValues": gradient_values},
+        message="Density visualization",
+        object_ids=all_object_ids,
+    )
 
 
 def attach_visual_markers(
@@ -238,28 +294,52 @@ def attach_visual_markers(
         health_objects: Dictionary of health objects.
         density_level: Threshold for high density.
     """
+    # for ho in health_objects.values():
+    #     if any(value > density_level for value in ho.densities.values()):
+    #         count_exceeding = sum(
+    #             1 for value in ho.densities.values() if value > density_level
+    #         )
+    #         automate_context.attach_error_to_objects(
+    #             category="Density Check",
+    #             object_ids=ho.id,
+    #             message=(
+    #                 f"{count_exceeding} mesh{'es' if count_exceeding != 1 else ''} "
+    #                 f"of this object {'have' if count_exceeding != 1 else 'has'} a density, "
+    #                 f"that exceeds the threshold of {density_level}."
+    #             ),
+    #             visual_overrides={"color": "#ff0000"},
+    #         )
+    #     else:
+    #         automate_context.attach_info_to_objects(
+    #             category="Density Check",
+    #             object_ids=ho.id,
+    #             message=f"This object has an acceptable density of {ho.aggregate_density}.",
+    #             visual_overrides={"color": "#00ff00"},
+    #         )
+    failing_ids = []
+    non_failing_ids = []
+
     for ho in health_objects.values():
         if any(value > density_level for value in ho.densities.values()):
-            count_exceeding = sum(
-                1 for value in ho.densities.values() if value > density_level
-            )
-            automate_context.attach_error_to_objects(
-                category="Density Check",
-                object_ids=ho.id,
-                message=(
-                    f"{count_exceeding} mesh{'es' if count_exceeding != 1 else ''} "
-                    f"of this object {'have' if count_exceeding != 1 else 'has'} a density, "
-                    f"that exceeds the threshold of {density_level}."
-                ),
-                visual_overrides={"color": "#ff0000"},
-            )
+            failing_ids.append(ho.id)
         else:
-            automate_context.attach_info_to_objects(
-                category="Density Check",
-                object_ids=ho.id,
-                message=f"This object has an acceptable density of {ho.aggregate_density}.",
-                visual_overrides={"color": "#00ff00"},
-            )
+            non_failing_ids.append(ho.id)
+
+    if failing_ids:
+        automate_context.attach_error_to_objects(
+            category="Density Check",
+            object_ids=failing_ids,
+            message=f"This object has a density that exceeds the set threshold ({density_level}).",
+            visual_overrides={"color": "#ff0000"},
+        )
+
+    if non_failing_ids:
+        automate_context.attach_info_to_objects(
+            category="Density Check",
+            object_ids=non_failing_ids,
+            message=f"This object has a density below the set threshold. ({density_level}).",
+            visual_overrides={"color": "#00ff00"},
+        )
 
 
 def create_health_objects(bases: List[Base]) -> Dict[str, HealthObject]:
@@ -332,9 +412,3 @@ def density_summary(
     ]
 
     return data, all_densities, all_areas
-
-
-def createColoredMeshes(
-    automate_context: AutomationContext, health_objects: Dict[str, HealthObject]
-) -> Base:
-    return Base()
