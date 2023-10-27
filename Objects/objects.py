@@ -62,7 +62,9 @@ class HealthObject:
         If the area is zero, density defaults to zero.
         """
         return {
-            key: (self.sizes[key] / self.areas[key]) if self.areas[key] != 0 else 0
+            key: (self.sizes[key] / self.areas[key])
+            if key in self.areas.keys() and self.areas[key] != 0
+            else 0
             for key in self.sizes
         }
 
