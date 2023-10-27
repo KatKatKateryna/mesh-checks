@@ -1,8 +1,9 @@
+from typing import List
+
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import seaborn as sns
-import numpy as np
-from typing import List
 
 sns.set_style("whitegrid")
 sns.set_context("talk")
